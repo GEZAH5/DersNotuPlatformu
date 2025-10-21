@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'r
 
 // 'ProfilEkrani' adında bir component oluştur
 // Bu ekran, tasarımınızdaki "Profil Ekranı"dır
-const ProfilEkrani = ({ navigation }) => {
+const ProfilEkrani = ({ navigation, handleLogout }) => {
   
   // Örnek kullanıcı verisi
   const kullaniciAdi = "Elif Yılmaz";
@@ -31,7 +31,10 @@ const ProfilEkrani = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Çıkış Yap Butonu (Tasarımınızdaki kırmızı buton) */}
-        <TouchableOpacity style={styles.menuItemCikis}>
+        <TouchableOpacity 
+        style={styles.menuItemCikis}
+        onPress={handleLogout} // <-- SADECE BU SATIRI EKLE
+      >
           <Text style={styles.menuTextCikis}>Çıkış Yap</Text>
           <Text style={styles.menuArrowCikis}>{">"}</Text>
         </TouchableOpacity>

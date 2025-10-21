@@ -1,33 +1,34 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
-// Yeni eklediğimiz kütüphaneyi import ediyoruz
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 
-// Top Tab Navigator'ı oluşturuyoruz
 const TopTab = createMaterialTopTabNavigator();
 
 /**
- * Bu component, "Yüklediklerim" sekmesinin içeriğini gösterir (şimdilik basit bir metin)
+ * Bu component, "Yüklediklerim" sekmesinin içeriğini gösterir.
+ * Artık App.tsx'ten gelen 'notlar' listesini kullanır.
  */
-function YuklediklerimScreen({ navigation }) {
-  // Örnek not verisi (Bu kısmı daha sonra veritabanından alacağız)
-  const notlar = [
-    { id: 1, baslik: 'Linear Cebir Notları', ders: 'Matematik', begeni: 120 },
-    { id: 2, 'baslik': 'Termodinamik Özet', ders: 'Fizik', begeni: 85 },
-  ];
-
+// navigation ve notlar prop'larını alıyoruz
+function YuklediklerimScreen({ navigation, notlar }) { 
   return (
     <ScrollView style={styles.tabContentContainer}>
+      {/* Eğer not listesi boşsa mesaj göster */}
+      {notlar.length === 0 && (
+        <Text style={styles.bosListeMesaji}>Henüz yüklenmiş not yok.</Text>
+      )}
+      {/* App.tsx'ten gelen 'notlar' listesini map ile dönüyoruz */}
       {notlar.map((not) => (
         <TouchableOpacity 
-          key={not.id} 
+          key={not.id} // ID'yi key olarak kullanıyoruz
           style={styles.notKarti}
-          onPress={() => navigation.navigate('NotDetay', { notId: not.id })} // Not Detay'a git
+          // NotDetay ekranına SADECE notun ID'sini değil, TÜM not nesnesini gönderiyoruz
+          onPress={() => navigation.navigate('NotDetay', { not: not })} 
         >
           <View style={styles.notIkon}></View>
           <View style={styles.notMetin}>
             <Text style={styles.notBaslik}>{not.baslik}</Text>
-            <Text style={styles.notDers}>{not.ders}</Text>
+            {/* Ders bilgisini gösterelim */}
+            <Text style={styles.notDers}>{not.ders || 'Ders Belirtilmemiş'}</Text> 
           </View>
           <Text style={styles.notBegeni}>{not.begeni} beğeni</Text>
         </TouchableOpacity>
@@ -49,35 +50,39 @@ function FavorilerimScreen() {
 }
 
 /**
- * Bu ana component, "Notlarım" ekranını oluşturur ve içinde Top Tab Navigator'ı barındırır.
+ * Bu ana component, "Notlarım" ekranını oluşturur ve Top Tab Navigator'ı barındırır.
+ * App.tsx'ten gelen 'notlar' listesini YuklediklerimScreen'e iletir.
  */
-const NotlarimEkrani = () => {
+// notlar prop'unu App.tsx'ten alıyoruz
+const NotlarimEkrani = ({ navigation, notlar }) => { 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Notlarım</Text>
       
-      {/* Üst Sekmeleri (Yüklediklerim / Favorilerim) burada oluşturuyoruz */}
       <TopTab.Navigator
         screenOptions={{
-          tabBarActiveTintColor: '#007AFF', // Aktif sekme rengi
-          tabBarInactiveTintColor: 'gray', // Pasif sekme rengi
-          tabBarLabelStyle: { fontSize: 14, fontWeight: 'bold' }, // Yazı stili
-          tabBarStyle: { backgroundColor: '#f9f9f9' }, // Sekme çubuğu arka planı
-          tabBarIndicatorStyle: { backgroundColor: '#007AFF', height: 3 }, // Alttaki çizgi
+          tabBarActiveTintColor: '#007AFF', 
+          tabBarInactiveTintColor: 'gray', 
+          tabBarLabelStyle: { fontSize: 14, fontWeight: 'bold' }, 
+          tabBarStyle: { backgroundColor: '#f9f9f9' }, 
+          tabBarIndicatorStyle: { backgroundColor: '#007AFF', height: 3 }, 
         }}
       >
-        <TopTab.Screen name="Yüklediklerim" component={YuklediklerimScreen} />
+        {/* YuklediklerimScreen'e 'notlar' listesini prop olarak iletiyoruz */}
+        <TopTab.Screen name="Yüklediklerim">
+          {(props) => <YuklediklerimScreen {...props} notlar={notlar} />} 
+        </TopTab.Screen>
         <TopTab.Screen name="Favorilerim" component={FavorilerimScreen} />
       </TopTab.Navigator>
     </SafeAreaView>
   );
 };
 
-// Stiller (Bazıları güncellendi)
+// Stiller
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9', // Hafif gri arka plan
+    backgroundColor: '#f9f9f9', 
   },
   title: {
     fontSize: 28,
@@ -85,13 +90,18 @@ const styles = StyleSheet.create({
     color: '#333',
     paddingHorizontal: 20,
     paddingTop: 20,
-    marginBottom: 15, // Başlıkla sekmeler arasına boşluk
+    marginBottom: 15, 
   },
-  tabContentContainer: { // Sekmelerin içindeki alan için stil
+  tabContentContainer: { 
     flex: 1,
-    padding: 20, // Kenarlardan boşluk
+    padding: 15, // Kenarlardan boşluğu biraz azalttık
   },
-  // Not kartı stilleri aynı kaldı
+  bosListeMesaji: {
+    textAlign: 'center',
+    marginTop: 50,
+    fontSize: 16,
+    color: 'gray',
+  },
   notKarti: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -109,7 +119,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#e0e0e0', // İkonun yeri
+    backgroundColor: '#e0e0e0', 
     marginRight: 15,
   },
   notMetin: {

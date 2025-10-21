@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 
 // 'navigation' prop'unu (ekranlar arası geçiş için) alıyoruz
-const GirisEkrani = ({ navigation }) => {
+const GirisEkrani = ({ navigation, handleLogin }) => {
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +32,7 @@ const GirisEkrani = ({ navigation }) => {
 <TouchableOpacity 
   style={styles.buttonPrimary}
   // 'AnaUygulama' ekranına (alt menülü bölüme) git
-  onPress={() => navigation.navigate('AnaUygulama')} 
+onPress={handleLogin}
 >
   <Text style={styles.buttonTextPrimary}>Giriş Yap</Text>
 </TouchableOpacity>

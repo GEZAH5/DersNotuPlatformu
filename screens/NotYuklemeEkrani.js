@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 
 // 'NotYuklemeEkrani' adında bir component oluştur
-const NotYuklemeEkrani = ({ navigation }) => {
-  
-  // Form alanları için state'leri tanımla
+// handleNotEkle prop'unu App.tsx'ten alıyoruz
+const NotYuklemeEkrani = ({ navigation, handleNotEkle }) => {
+
+  // Form alanları için state'ler
   const [baslik, setBaslik] = useState('');
   const [aciklama, setAciklama] = useState('');
   const [bolum, setBolum] = useState('');
@@ -14,7 +15,6 @@ const NotYuklemeEkrani = ({ navigation }) => {
   const [etiketler, setEtiketler] = useState('');
 
   return (
-    // 'ScrollView' sayesinde form uzunsa ekran kaydırılabilir olur
     <ScrollView style={styles.container}>
       <SafeAreaView>
         <Text style={styles.title}>Yeni Not Yükle</Text>
@@ -76,13 +76,47 @@ const NotYuklemeEkrani = ({ navigation }) => {
           onChangeText={setEtiketler}
         />
 
-        {/* Dosya Seç Butonu */}
-        <TouchableOpacity style={styles.buttonSecondary}>
+        {/* Dosya Seç Butonu (Şimdilik işlevsiz) */}
+        <TouchableOpacity
+          style={styles.buttonSecondary}
+          // onPress={dosyaSec} // Dosya seçme işlevi daha sonra eklenecek
+        >
           <Text style={styles.buttonTextSecondary}>Dosya Seç (PDF/Metin)</Text>
         </TouchableOpacity>
 
-        {/* Notu Yükle Butonu (Tasarımınızdaki yeşil buton) */}
-        <TouchableOpacity style={styles.buttonPrimary}>
+        {/* Notu Yükle Butonu (İŞLEVSSELLİK EKLENDİ) */}
+        <TouchableOpacity
+          style={styles.buttonPrimary}
+          onPress={() => { // Butona basıldığında çalışacak kod
+            // 1. Yeni not nesnesini oluştur
+            const yeniNot = {
+              baslik: baslik,
+              aciklama: aciklama,
+              bolum: bolum,
+              sinif: sinif,
+              ders: ders,
+              konu: konu,
+              etiketler: etiketler.split(',').map(tag => tag.trim()), // Etiketleri ayır ve boşlukları temizle
+              begeni: 0 // Başlangıçta 0 beğeni
+              // ID'yi App.tsx'teki handleNotEkle ekleyecek
+            };
+
+            // 2. App.tsx'teki fonksiyonu çağırarak listeye ekle
+            handleNotEkle(yeniNot);
+
+            // 3. Kullanıcıyı "Notlarım" ekranına geri yönlendir
+            navigation.navigate('AnaUygulama', { screen: 'Notlarım' });
+
+            // 4. Formu temizle
+            setBaslik('');
+            setAciklama('');
+            setBolum('');
+            setSinif('');
+            setDers('');
+            setKonu('');
+            setEtiketler('');
+          }}
+        >
           <Text style={styles.buttonTextPrimary}>Notu Yükle</Text>
         </TouchableOpacity>
 
@@ -115,21 +149,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
   },
   inputMultiline: {
-    height: 120, // Açıklama alanı daha yüksek
+    height: 120,
     borderColor: '#ddd',
     borderWidth: 1,
     borderRadius: 8,
     marginBottom: 15,
     paddingHorizontal: 15,
     backgroundColor: '#f9f9f9',
-    textAlignVertical: 'top', // Metni yukarıdan başlat
+    textAlignVertical: 'top',
   },
   buttonPrimary: {
-    backgroundColor: '#4CAF50', // Yeşil buton
+    backgroundColor: '#4CAF50',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20, // Üstteki butonla arasına boşluk
+    marginTop: 20,
   },
   buttonTextPrimary: {
     color: '#fff',
@@ -137,7 +171,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   buttonSecondary: {
-    backgroundColor: '#007AFF', // Mavi buton
+    backgroundColor: '#007AFF',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
@@ -150,5 +184,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// Component'i dışa aktar (Kırmızı Ekran hatası almamak için bu şart)
+// Component'i dışa aktar
 export default NotYuklemeEkrani;
