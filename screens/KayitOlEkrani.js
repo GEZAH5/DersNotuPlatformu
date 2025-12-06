@@ -1,76 +1,80 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import auth from '@react-native-firebase/auth'; 
+import firestore from '@react-native-firebase/firestore'; 
 
-// 'navigation' prop'unu alıyoruz, "Giriş Yap"a geri dönebilmek için
-const KayitOlEkrani = ({ navigation }) => {
-  
-  const [adSoyad, setAdSoyad] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
+export default function KayitOlEkrani({ navigation }) {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('');
+    
+    const handleSignUp = async () => {
+        if (!email || !password || !username) {
+            Alert.alert('Hata', 'Lütfen tüm alanları doldurun.');
+            return;
+        }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Hesap Oluştur</Text>
+        try {
+            // 1. Firebase Authentication ile kullanıcı oluştur
+            const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+            const user = userCredential.user;
 
-      <TextInput
-        style={styles.input}
-        placeholder="Adınız Soyadınız"
-        value={adSoyad}
-        onChangeText={setAdSoyad}
-        autoCapitalize="words"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="E-posta Adresi"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Şifre"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Şifrenizi Tekrar Girin"
-        value={passwordConfirm}
-        onChangeText={setPasswordConfirm}
-        secureTextEntry
-      />
+            // 2. Firestore'a kullanıcı profilini kaydet (Profil ekranı için zorunlu)
+            await firestore().collection('Users').doc(user.uid).set({
+                email: user.email,
+                username: username,
+                createdAt: firestore.FieldValue.serverTimestamp(),
+            });
 
-      {/* Kayıt Ol Butonu */}
-      <TouchableOpacity style={styles.buttonPrimary}>
-        <Text style={styles.buttonTextPrimary}>Kayıt Ol</Text>
-      </TouchableOpacity>
+            Alert.alert('Başarılı', 'Kayıt başarılı! Uygulamaya yönlendiriliyorsunuz.');
+            // Başarılı olursa App.tsx'teki dinleyici tetiklenir ve Ana Uygulamaya geçiş yapılır.
 
-      {/* Giriş Yap'a Geri Dön Butonu (Navigasyon Eklendi) */}
-      <TouchableOpacity 
-        style={styles.buttonSecondary}
-        // 'Giris' ekranına geri gitmek için 'navigation.navigate'
-        onPress={() => navigation.navigate('Giris')} 
-      >
-        <Text style={styles.buttonTextSecondary}>Zaten hesabın var mı? Giriş Yap</Text>
-      </TouchableOpacity>
+        } catch (error) {
+            let errorMessage = "Kayıt sırasında bir hata oluştu: " + error.message;
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = "Bu e-posta adresi zaten kullanılıyor.";
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = "Şifreniz en az 6 karakter olmalıdır.";
+            }
+            Alert.alert('Hata', errorMessage);
+        }
+    };
 
-    </SafeAreaView>
-  );
-};
+    return (
+        <View style={styles.container}>
+            <Text style={styles.title}>NOTİKA'ya Kayıt Ol</Text>
+            <TextInput
+                style={styles.input}
+                placeholder="Kullanıcı Adı"
+                onChangeText={setUsername}
+                value={username}
+            />
+            <TextInput
+                style={styles.input}
+                placeholder="E-posta"
+                onChangeText={setEmail}
+                value={email}
+                keyboardType="email-address"
+            />
+            <TextInput
+                style={styles.input}
+                placeholder="Şifre (min. 6 karakter)"
+                onChangeText={setPassword}
+                value={password}
+                secureTextEntry
+            />
+            <Button title="Kayıt Ol" onPress={handleSignUp} color="#007AFF"/>
+            
+            <TouchableOpacity onPress={() => navigation.navigate('Giris')}>
+                <Text style={styles.link}>Zaten hesabım var, Giriş Yap</Text>
+            </TouchableOpacity>
+        </View>
+    );
+}
 
-// Stiller (GirisEkrani.js ile neredeyse aynı)
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' },
-  title: { fontSize: 32, fontWeight: 'bold', textAlign: 'center', color: '#333', marginBottom: 30 },
-  input: { height: 50, borderColor: '#ddd', borderWidth: 1, borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, backgroundColor: '#f9f9f9' },
-  buttonPrimary: { backgroundColor: '#007AFF', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
-  buttonTextPrimary: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  buttonSecondary: { padding: 10, alignItems: 'center' },
-  buttonTextSecondary: { color: '#007AFF', fontSize: 14 },
+    container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' },
+    title: { fontSize: 28, marginBottom: 30, textAlign: 'center', fontWeight: 'bold' },
+    input: { height: 50, borderColor: '#ccc', borderWidth: 1, marginBottom: 15, paddingHorizontal: 15, borderRadius: 8 },
+    link: { color: '#007AFF', textAlign: 'center', marginTop: 20, fontSize: 16 }
 });
-
-// Component'i dışa aktar (Kırmızı Ekran hatası almamak için bu şart)
-export default KayitOlEkrani;

@@ -1,143 +1,135 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const TopTab = createMaterialTopTabNavigator();
+export default function NotlarimEkrani({ navigation }) {
+    const [myNotes, setMyNotes] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-/**
- * Bu component, "Yüklediklerim" sekmesinin içeriğini gösterir.
- * Artık App.tsx'ten gelen 'notlar' listesini kullanır.
- */
-// navigation ve notlar prop'larını alıyoruz
-function YuklediklerimScreen({ navigation, notlar }) { 
-  return (
-    <ScrollView style={styles.tabContentContainer}>
-      {/* Eğer not listesi boşsa mesaj göster */}
-      {notlar.length === 0 && (
-        <Text style={styles.bosListeMesaji}>Henüz yüklenmiş not yok.</Text>
-      )}
-      {/* App.tsx'ten gelen 'notlar' listesini map ile dönüyoruz */}
-      {notlar.map((not) => (
+    const user = auth().currentUser;
+
+    useEffect(() => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        // --- SADECE GİRİŞ YAPMIŞ KULLANICININ NOTLARINI FİLTRELE ---
+        const subscriber = firestore()
+            .collection('Notes')
+            .where('userId', '==', user.uid) // Kullanıcının ID'sine göre filtrele
+            .orderBy('yuklenmeTarihi', 'desc') 
+            .onSnapshot(querySnapshot => {
+                const loadedNotes = [];
+                querySnapshot.forEach(documentSnapshot => {
+                    loadedNotes.push({
+                        id: documentSnapshot.id,
+                        ...documentSnapshot.data(),
+                    });
+                });
+                setMyNotes(loadedNotes);
+                setLoading(false);
+            }, error => {
+                console.error("Notlarim ekranı hata:", error);
+                setLoading(false);
+            });
+
+        return () => subscriber(); // Dinlemeyi sonlandır
+    }, [user]);
+
+    const renderItem = ({ item }) => (
         <TouchableOpacity 
-          key={not.id} // ID'yi key olarak kullanıyoruz
-          style={styles.notKarti}
-          // NotDetay ekranına SADECE notun ID'sini değil, TÜM not nesnesini gönderiyoruz
-          onPress={() => navigation.navigate('NotDetay', { not: not })} 
+            style={styles.noteCard} 
+            onPress={() => navigation.navigate('NotDetay', { noteId: item.id })}
         >
-          <View style={styles.notIkon}></View>
-          <View style={styles.notMetin}>
-            <Text style={styles.notBaslik}>{not.baslik}</Text>
-            {/* Ders bilgisini gösterelim */}
-            <Text style={styles.notDers}>{not.ders || 'Ders Belirtilmemiş'}</Text> 
-          </View>
-          <Text style={styles.notBegeni}>{not.begeni} beğeni</Text>
+            <View style={styles.headerRow}>
+                <Text style={styles.noteTitle}>{item.baslik}</Text>
+                <Text style={styles.noteTag}>Ders: {item.dersAdi}</Text>
+            </View>
+            <View style={styles.interactionRow}>
+                <Text style={styles.interactionText}>
+                    <Icon name="heart-outline" size={14} /> {item.begeniler}
+                </Text>
+                <Text style={styles.interactionText}>
+                    <Icon name="chatbubble-outline" size={14} /> {item.yorumSayisi}
+                </Text>
+            </View>
         </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
+    );
+
+    if (loading) {
+        return <ActivityIndicator size="large" style={styles.loading} color="#007AFF" />;
+    }
+
+    return (
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.container}>
+                <Text style={styles.pageTitle}>Yüklediğim Notlar</Text>
+                
+                <FlatList
+                    data={myNotes}
+                    renderItem={renderItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={() => (
+                        <Text style={styles.emptyText}>Henüz hiç not yüklemediniz.</Text>
+                    )}
+                />
+            </View>
+        </SafeAreaView>
+    );
 }
 
-/**
- * Bu component, "Favorilerim" sekmesinin içeriğini gösterir (şimdilik basit bir metin)
- */
-function FavorilerimScreen() {
-  return (
-    <View style={styles.tabContentContainer}>
-      <Text>Favori notlarınız burada listelenecek.</Text>
-      {/* Buraya da favori notların listesi gelecek */}
-    </View>
-  );
-}
-
-/**
- * Bu ana component, "Notlarım" ekranını oluşturur ve Top Tab Navigator'ı barındırır.
- * App.tsx'ten gelen 'notlar' listesini YuklediklerimScreen'e iletir.
- */
-// notlar prop'unu App.tsx'ten alıyoruz
-const NotlarimEkrani = ({ navigation, notlar }) => { 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Notlarım</Text>
-      
-      <TopTab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: '#007AFF', 
-          tabBarInactiveTintColor: 'gray', 
-          tabBarLabelStyle: { fontSize: 14, fontWeight: 'bold' }, 
-          tabBarStyle: { backgroundColor: '#f9f9f9' }, 
-          tabBarIndicatorStyle: { backgroundColor: '#007AFF', height: 3 }, 
-        }}
-      >
-        {/* YuklediklerimScreen'e 'notlar' listesini prop olarak iletiyoruz */}
-        <TopTab.Screen name="Yüklediklerim">
-          {(props) => <YuklediklerimScreen {...props} notlar={notlar} />} 
-        </TopTab.Screen>
-        <TopTab.Screen name="Favorilerim" component={FavorilerimScreen} />
-      </TopTab.Navigator>
-    </SafeAreaView>
-  );
-};
-
-// Stiller
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9f9f9', 
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    marginBottom: 15, 
-  },
-  tabContentContainer: { 
-    flex: 1,
-    padding: 15, // Kenarlardan boşluğu biraz azalttık
-  },
-  bosListeMesaji: {
-    textAlign: 'center',
-    marginTop: 50,
-    fontSize: 16,
-    color: 'gray',
-  },
-  notKarti: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  notIkon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#e0e0e0', 
-    marginRight: 15,
-  },
-  notMetin: {
-    flex: 1,
-  },
-  notBaslik: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  notDers: {
-    fontSize: 14,
-    color: 'gray',
-  },
-  notBegeni: {
-    fontSize: 14,
-    color: 'gray',
-  },
+    safeArea: { 
+        flex: 1, 
+        backgroundColor: '#f5f5f5' 
+    },
+    container: { 
+        flex: 1, 
+        paddingHorizontal: 10, 
+    },
+    loading: { flex: 1, justifyContent: 'center' },
+    // KRİTİK DÜZELTME: Başlığı daha da aşağı çekmek için 40px boşluk ekliyoruz.
+    pageTitle: { 
+        fontSize: 28, 
+        fontWeight: 'bold', 
+        marginTop: 40, // Değer 40'a yükseltildi
+        marginBottom: 20, 
+        textAlign: 'center' 
+    },
+    noteCard: {
+        backgroundColor: '#fff',
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 10,
+        elevation: 2,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 5,
+    },
+    noteTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    noteTag: {
+        fontSize: 14,
+        color: '#007AFF',
+    },
+    interactionRow: {
+        flexDirection: 'row',
+        marginTop: 10,
+    },
+    interactionText: {
+        fontSize: 14,
+        color: '#777',
+        marginRight: 15,
+    },
+    listContent: { paddingBottom: 20 },
+    emptyText: { textAlign: 'center', marginTop: 50, color: '#aaa' }
 });
-
-// Component'i dışa aktar
-export default NotlarimEkrani;

@@ -1,162 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import auth from '@react-native-firebase/auth'; // Firebase Auth importu
 
-// Ekranlarımızı import ediyoruz
+// KRİTİK DÜZELTME: Ekranları doğrudan './screens/' klasöründen çekiyoruz.
 import GirisEkrani from './screens/GirisEkrani';
 import KayitOlEkrani from './screens/KayitOlEkrani';
 import NotlarimEkrani from './screens/NotlarimEkrani';
 import KesfetEkrani from './screens/KesfetEkrani';
 import NotYuklemeEkrani from './screens/NotYuklemeEkrani';
 import ProfilEkrani from './screens/ProfilEkrani';
-import NotDetayEkrani from './screens/NotDetayEkrani';
 
-// Navigatörleri oluşturuyoruz
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- AnaUygulamaTabs Fonksiyonu DÜZELTİLDİ ---
-// handleLogout, notlar ve handleNotEkle prop'larını alacak şekilde güncellendi
-function AnaUygulamaTabs({ navigation, handleLogout, notlar, handleNotEkle }) {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: 'gray',
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === 'Notlarım') { iconName = focused ? 'book' : 'book-outline'; }
-          else if (route.name === 'Keşfet') { iconName = focused ? 'search' : 'search-outline'; }
-          else if (route.name === 'Yükle') { iconName = focused ? 'add-circle' : 'add-circle-outline'; }
-          else if (route.name === 'Profil') { iconName = focused ? 'person' : 'person-outline'; }
-          return <Icon name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      {/* NotlarimEkrani'na notlar listesini iletiyoruz */}
-      <Tab.Screen name="Notlarım">
-        {(props) => <NotlarimEkrani {...props} notlar={notlar} />}
-      </Tab.Screen>
-      <Tab.Screen name="Keşfet" component={KesfetEkrani} />
-      {/* NotYuklemeEkrani'na handleNotEkle fonksiyonunu iletiyoruz */}
-      <Tab.Screen name="Yükle">
-        {(props) => <NotYuklemeEkrani {...props} handleNotEkle={handleNotEkle} />}
-      </Tab.Screen>
-      {/* Profil ekranına handleLogout fonksiyonunu iletiyoruz */}
-      <Tab.Screen name="Profil">
-        {(props) => <ProfilEkrani {...props} handleLogout={handleLogout} />}
-      </Tab.Screen>
-    </Tab.Navigator>
-  );
-}
-// --- DÜZELTME BİTTİ ---
-
-const App = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [checkingLogin, setCheckingLogin] = useState(true);
-  // Yeni state doğru yerde
-  const [notlarListesi, setNotlarListesi] = useState([]);
-
-  useEffect(() => {
-    const checkLoginStatus = async () => {
-      try {
-        const userLoggedIn = await AsyncStorage.getItem('userLoggedIn');
-        if (userLoggedIn !== null && userLoggedIn === 'true') {
-          setIsLoggedIn(true);
-        }
-      } catch (e) {
-        console.error("AsyncStorage okunurken hata:", e);
-      } finally {
-        setCheckingLogin(false);
-      }
-    };
-    checkLoginStatus();
-  }, []);
-
-  const handleLogin = async () => {
-    try {
-      await AsyncStorage.setItem('userLoggedIn', 'true');
-      setIsLoggedIn(true);
-    } catch (e) {
-      console.error("AsyncStorage yazılırken hata:", e);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await AsyncStorage.removeItem('userLoggedIn');
-      setIsLoggedIn(false);
-    } catch (e) {
-      console.error("AsyncStorage silinirken hata:", e);
-    }
-  };
-
-  // Yeni fonksiyon doğru yerde
-  const handleNotEkle = (yeniNot) => {
-    yeniNot.id = Math.random().toString();
-    setNotlarListesi(oncekiListe => [...oncekiListe, yeniNot]);
-    console.log("App.tsx - Yeni not eklendi, güncel liste:", notlarListesi); // Daha detaylı log
-  };
-
-  if (checkingLogin) {
+// ----------------------------------------------------
+// ANA UYGULAMA SEKME NAVİGATOR'Ü (LOGİN SONRASI)
+// ----------------------------------------------------
+function AnaUygulamaTabs() {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
+        <Tab.Navigator
+            screenOptions={({ route }) => ({
+                headerShown: false,
+                tabBarActiveTintColor: '#007AFF',
+                tabBarInactiveTintColor: 'gray',
+                tabBarIcon: ({ focused, color, size }) => {
+                    let iconName;
 
-  return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isLoggedIn ? (
-          <>
-            {/* --- Stack.Screen AnaUygulama DÜZELTİLDİ --- */}
-            <Stack.Screen name="AnaUygulama">
-              {(props) => ( // Prop'ları doğru şekilde iletiyoruz
-                <AnaUygulamaTabs
-                  {...props}
-                  handleLogout={handleLogout}
-                  notlar={notlarListesi}
-                  handleNotEkle={handleNotEkle}
-                />
-              )}
-            </Stack.Screen>
-            {/* --- DÜZELTME BİTTİ --- */}
-            <Stack.Screen
-              name="NotDetay"
-              component={NotDetayEkrani}
-              options={{ headerShown: true, title: 'Not Detayı' }}
-            />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Giris">
-              {(props) => <GirisEkrani {...props} handleLogin={handleLogin} />}
-            </Stack.Screen>
-            <Stack.Screen
-              name="KayitOl"
-              component={KayitOlEkrani}
-              options={{ headerShown: true, title: 'Hesap Oluştur' }}
-            />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
-};
+                    if (route.name === 'Notlarim') {
+                        iconName = focused ? 'book' : 'book-outline';
+                    } else if (route.name === 'Kesfet') {
+                        iconName = focused ? 'search' : 'search-outline';
+                    } else if (route.name === 'Yukle') {
+                        iconName = focused ? 'add-circle' : 'add-circle-outline';
+                    } else if (route.name === 'Profil') {
+                        iconName = focused ? 'person' : 'person-outline';
+                    }
+                    return <Icon name={iconName} size={size} color={color} />;
+                },
+            })}
+        >
+            <Tab.Screen name="Notlarim" component={NotlarimEkrani} />
+            <Tab.Screen name="Kesfet" component={KesfetEkrani} />
+            <Tab.Screen name="Yukle" component={NotYuklemeEkrani} />
+            <Tab.Screen name="Profil" component={ProfilEkrani} />
+        </Tab.Navigator>
+    );
+}
+
+// ----------------------------------------------------
+// GİRİŞ/KAYIT STACK NAVİGATOR'Ü (LOGOUT SONRASI)
+// ----------------------------------------------------
+function AuthStack() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Giris" component={GirisEkrani} />
+            <Stack.Screen name="KayitOl" component={KayitOlEkrani} />
+        </Stack.Navigator>
+    );
+}
+
+// ----------------------------------------------------
+// ANA UYGULAMA COMPONENT'İ (Oturum Kontrolü)
+// ----------------------------------------------------
+export default function App() {
+    const [initializing, setInitializing] = useState(true); 
+    const [user, setUser] = useState(null); 
+
+    // Kullanıcı oturum durumu değiştiğinde çağrılır
+    function onAuthStateChanged(user) {
+        setUser(user);
+        if (initializing) setInitializing(false);
+    }
+
+    useEffect(() => {
+        const subscriber = auth().onAuthStateChanged(onAuthStateChanged);
+        return subscriber; 
+    }, []);
+
+    if (initializing) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text>Oturum Kontrol Ediliyor...</Text>
+            </View>
+        );
+    }
+
+    // Navigasyon Mantığı:
+    return (
+        <NavigationContainer>
+            {user ? (
+                // Kullanıcı varsa: Ana Uygulama Sekmeleri gösterilir
+                <AnaUygulamaTabs />
+            ) : (
+                // Kullanıcı yoksa: Giriş/Kayıt Ekranları gösterilir
+                <AuthStack />
+            )}
+        </NavigationContainer>
+    );
+}
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  }
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 });
-
-export default App;

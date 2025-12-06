@@ -1,206 +1,200 @@
-import React, { useState } from 'react'; // useState eklendi
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput } from 'react-native';
-// İkonlar için Icon component'ini import ediyoruz (zaten kurulu)
-import Icon from 'react-native-vector-icons/Ionicons'; 
+import React, { useState, useEffect } from 'react';
+import { View, Text, Button, StyleSheet, Alert, ScrollView, ActivityIndicator, TextInput, TouchableOpacity } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import RNFS from 'react-native-fs'; // Dosya indirme kütüphanesi
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const NotDetayEkrani = ({ route, navigation }) => {
-  const { not } = route.params;
+export default function NotDetayEkrani({ route, navigation }) {
+    const { noteId } = route.params; // Keşfet ekranından gelen not ID'si
+    const [note, setNote] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [comment, setComment] = useState('');
+    const [isFavorite, setIsFavorite] = useState(false); // Favori durumunu tutar (Beğeni)
+    const [comments, setComments] = useState([]); // Yorum listesi için
 
-  // Beğeni durumunu ve sayısını tutmak için state
-  const [liked, setLiked] = useState(false); // Başlangıçta beğenilmemiş
-  const [likeCount, setLikeCount] = useState(not?.begeni || 0); // Gelen notun beğeni sayısı veya 0
+    const currentUser = auth().currentUser;
 
-  // Yorumları (geçici) tutmak için state
-  const [yorumlar, setYorumlar] = useState([
-    { id: 1, kisi: "Ayşe Demir", yorum: "Harika bir özet, teşekkürler!" },
-    { id: 2, kisi: "Mehmet Can", yorum: "Sınavda çok yardımcı oldu." },
-  ]);
-  // Yeni yorum metnini tutmak için state
-  const [yeniYorum, setYeniYorum] = useState('');
+    // --- NOTU ÇEKME VE YORUMLARI DİNLEME ---
+    useEffect(() => {
+        // Not detayını dinle
+        const noteSubscriber = firestore()
+            .collection('Notes')
+            .doc(noteId)
+            .onSnapshot(documentSnapshot => {
+                if (documentSnapshot.exists) {
+                    setNote({ id: documentSnapshot.id, ...documentSnapshot.data() });
+                } else {
+                    Alert.alert('Hata', 'Not bulunamadı.');
+                }
+                setLoading(false);
+            });
 
-  if (!not) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text>Not bilgileri yüklenemedi.</Text>
-      </SafeAreaView>
-    );
-  }
+        // Yorumları dinle
+        const commentSubscriber = firestore()
+            .collection('Notes')
+            .doc(noteId)
+            .collection('Comments')
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(querySnapshot => {
+                const loadedComments = [];
+                querySnapshot.forEach(doc => {
+                    loadedComments.push({ id: doc.id, ...doc.data() });
+                });
+                setComments(loadedComments);
+            });
 
-  // Beğenme fonksiyonu (sadece state'i günceller)
-  const handleLike = () => {
-    if (liked) {
-      setLikeCount(likeCount - 1);
-      setLiked(false);
-    } else {
-      setLikeCount(likeCount + 1);
-      setLiked(true);
-    }
-    // Gerçek uygulamada burada veritabanına kaydetme işlemi olurdu
-  };
+        return () => {
+            noteSubscriber();
+            commentSubscriber();
+        };
+    }, [noteId]);
 
-  // Yorum ekleme fonksiyonu (sadece state'i günceller)
-  const handleYorumEkle = () => {
-    if (yeniYorum.trim() === '') return; // Boş yorum eklenmesin
-
-    const eklenecekYorum = {
-      id: Math.random().toString(), // Geçici ID
-      kisi: "Mevcut Kullanıcı", // Gerçek uygulamada giriş yapmış kullanıcı adı
-      yorum: yeniYorum,
+    // --- YORUM EKLEME İŞLEVİ ---
+    const handleAddComment = async () => {
+        if (comment.trim() === '') {
+            Alert.alert('Boş Yorum', 'Lütfen bir yorum yazın.');
+            return;
+        }
+        try {
+            await firestore().collection('Notes').doc(noteId).collection('Comments').add({
+                userId: currentUser.uid,
+                username: currentUser.displayName || currentUser.email,
+                text: comment,
+                createdAt: firestore.FieldValue.serverTimestamp(),
+            });
+            setComment('');
+            // Yorum sayısını Notes ana koleksiyonunda güncelle
+            firestore().collection('Notes').doc(noteId).update({
+                yorumSayisi: firestore.FieldValue.increment(1)
+            });
+        } catch (error) {
+            Alert.alert('Hata', 'Yorum eklenirken sorun oluştu.');
+        }
     };
-    setYorumlar([...yorumlar, eklenecekYorum]); // Listeye ekle
-    setYeniYorum(''); // Yorum kutusunu temizle
-    // Gerçek uygulamada burada veritabanına kaydetme işlemi olurdu
-  };
+    
+    // --- BEĞENİ VE FAVORİ İŞLEVİ (Sadece beğeni sayısını artırır) ---
+    const handleLike = async () => {
+        const newLikeCount = note.begeniler + (isFavorite ? -1 : 1);
+        try {
+            await firestore().collection('Notes').doc(noteId).update({
+                begeniler: newLikeCount,
+            });
+            setIsFavorite(!isFavorite); 
+        } catch (error) {
+            Alert.alert('Hata', 'Beğeni güncellenemedi.');
+        }
+    };
 
-  return (
-    <ScrollView style={styles.container}>
-      <SafeAreaView>
-        {/* Not Başlığı ve Bilgileri */}
-        <View style={styles.header}>
-          <Text style={styles.baslik}>{not.baslik || 'Başlık Yok'}</Text>
-          <Text style={styles.bilgi}>Ders: {not.ders || 'Belirtilmemiş'}</Text>
+    // --- DOSYA İNDİRME İŞLEVİ (RNFS ile) ---
+    const handleDownload = async () => {
+        if (!note || !note.fileURL || note.fileURL === 'DOSYA_YÜKLENECEK') {
+            Alert.alert('Hata', 'Dosya linki geçerli değil. Not yükleme sırasında dosya yüklenmemiş olabilir.');
+            return;
+        }
+
+        const downloadUrl = note.fileURL;
+        const fileName = note.dosyaAdi || 'indirilen_not.pdf';
+        const downloadPath = `${RNFS.DownloadDirectoryPath}/${fileName}`; 
+
+        try {
+            Alert.alert('İndirme Başladı', `${fileName} dosyası cihazınıza indiriliyor...`);
+
+            const options = {
+                fromUrl: downloadUrl,
+                toFile: downloadPath,
+            };
+
+            const response = await RNFS.downloadFile(options).promise;
+
+            if (response.statusCode === 200) {
+                Alert.alert('Başarılı', `${fileName} başarıyla indirildi ve İndirilenler klasörüne kaydedildi!`);
+            } else {
+                throw new Error(`Sunucudan hata kodu alındı: ${response.statusCode}`);
+            }
+
+        } catch (error) {
+            console.error("İndirme Hatası:", error);
+            Alert.alert('Hata', 'Dosya indirilemedi. Bağlantı veya dosya izni sorunu olabilir.');
+        }
+    };
+
+    const renderComment = ({ item }) => (
+        <View style={styles.commentItem}>
+            <Text style={styles.commentUsername}>{item.username}:</Text>
+            <Text style={styles.commentText}>{item.text}</Text>
         </View>
+    );
 
-        {/* Notun Açıklaması */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.icerik}>{not.aciklama || 'Açıklama yok.'}</Text>
-        </View>
+    if (loading || !note) {
+        return <ActivityIndicator size="large" style={styles.loading} color="#007AFF" />;
+    }
 
-        {/* Etiketler */}
-        {not.etiketler && not.etiketler.length > 0 && (
-          <View style={styles.etiketContainer}>
-            <Text style={styles.etiketBaslik}>Etiketler:</Text>
-            <View style={styles.etiketler}>
-              {not.etiketler.map((etiket, index) => (
-                <Text key={index} style={styles.etiket}>{etiket}</Text>
-              ))}
+    return (
+        <ScrollView style={styles.container}>
+            <Text style={styles.title}>{note.baslik}</Text>
+            
+            {/* Not Bilgileri */}
+            <View style={styles.infoBox}>
+                <Text style={styles.infoText}>**Ders:** {note.dersAdi}</Text>
+                <Text style={styles.infoText}>**Bölüm:** {note.bolum}</Text>
+                <Text style={styles.infoText}>**Yükleyen:** {note.username}</Text>
+                <Text style={styles.infoText}>**Dosya Adı:** {note.dosyaAdi}</Text>
             </View>
-          </View>
-        )}
-
-        {/* --- YENİ BUTONLAR --- */}
-        <View style={styles.butonContainer}>
-          {/* Beğen Butonu */}
-          <TouchableOpacity onPress={handleLike} style={styles.actionButton}>
-            <Icon 
-              name={liked ? "heart" : "heart-outline"} // Beğenildiyse dolu kalp, değilse boş kalp
-              size={24} 
-              color={liked ? "red" : "gray"} // Beğenildiyse kırmızı
-            />
-            <Text style={styles.actionText}>{likeCount} Beğeni</Text>
-          </TouchableOpacity>
-
-          {/* Yorum İkonu (Sadece görsel) */}
-          <View style={styles.actionButton}>
-            <Icon name="chatbubble-outline" size={24} color="gray" />
-            <Text style={styles.actionText}>{yorumlar.length} Yorum</Text>
-          </View>
-
-          {/* İndir Butonu (Hâlâ işlevsiz) */}
-          <TouchableOpacity style={[styles.actionButton, styles.indirButon]}>
-            <Icon name="download-outline" size={24} color="#fff" />
-            <Text style={styles.indirText}>İndir</Text>
-          </TouchableOpacity>
-        </View>
-        {/* --- BUTONLAR BİTTİ --- */}
-
-        {/* --- YORUMLAR BÖLÜMÜ GÜNCELLENDİ --- */}
-        <Text style={styles.yorumBaslik}>Yorumlar</Text>
-
-        {/* Yorum Ekleme Alanı */}
-        <View style={styles.yorumEkleContainer}>
-          <TextInput
-            style={styles.yorumInput}
-            placeholder="Yorumunuzu yazın..."
-            value={yeniYorum}
-            onChangeText={setYeniYorum}
-            multiline
-          />
-          <TouchableOpacity style={styles.yorumGonderButton} onPress={handleYorumEkle}>
-            <Text style={styles.yorumGonderText}>Gönder</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Yorum Listesi */}
-        {yorumlar.length === 0 ? (
-          <Text style={styles.yorumYokMesaji}>Henüz yorum yapılmamış.</Text>
-        ) : (
-          yorumlar.map((yorum) => (
-            <View key={yorum.id} style={styles.yorumKarti}>
-              <Text style={styles.yorumKisi}>{yorum.kisi}</Text>
-              <Text style={styles.yorumMetin}>{yorum.yorum}</Text>
+            
+            {/* Etkileşim ve İndirme */}
+            <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
+                    <Icon name={isFavorite ? 'heart' : 'heart-outline'} size={24} color={isFavorite ? 'red' : 'gray'} />
+                    <Text style={styles.likeText}>{note.begeniler}</Text>
+                </TouchableOpacity>
+                <Button 
+                    title="Dosyayı İndir" 
+                    onPress={handleDownload} 
+                    color="#28a745"
+                    disabled={note.fileURL === 'DOSYA_YÜKLENECEK'}
+                />
             </View>
-          ))
-        )}
-        {/* --- YORUMLAR BİTTİ --- */}
 
-      </SafeAreaView>
-    </ScrollView>
-  );
-};
+            {/* Yorum Alanı */}
+            <View style={styles.commentSection}>
+                <Text style={styles.sectionTitle}>Yorum Yap</Text>
+                <TextInput
+                    style={styles.commentInput}
+                    placeholder="Bir yorum yazın..."
+                    value={comment}
+                    onChangeText={setComment}
+                    multiline
+                />
+                <Button title="Yorumu Gönder" onPress={handleAddComment} color="#007AFF" disabled={!comment.trim()} />
+                
+                <Text style={styles.sectionTitleList}>Tüm Yorumlar ({comments.length})</Text>
+                {comments.length > 0 ? (
+                    comments.map((item) => renderComment({ item }))
+                ) : (
+                    <Text style={styles.noComment}>Henüz yorum yok.</Text>
+                )}
+            </View>
+            <View style={{height: 50}} /> 
+        </ScrollView>
+    );
+}
 
-// Stiller (Yeni stiller eklendi)
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  baslik: { fontSize: 26, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  bilgi: { fontSize: 14, color: 'gray', marginBottom: 3 },
-  contentContainer: { padding: 20 },
-  icerik: { fontSize: 16, lineHeight: 24, color: '#444' },
-  etiketContainer: { paddingHorizontal: 20, marginBottom: 15, },
-  etiketBaslik: { fontWeight: 'bold', marginBottom: 5 },
-  etiketler: { flexDirection: 'row', flexWrap: 'wrap' },
-  etiket: { backgroundColor: '#e0e0e0', borderRadius: 5, paddingVertical: 3, paddingHorizontal: 8, marginRight: 5, marginBottom: 5, fontSize: 12 },
-  butonContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', padding: 15, borderTopWidth: 1, borderTopColor: '#eee', marginTop: 10 },
-  actionButton: { // Beğen ve Yorum için genel stil
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionText: {
-    marginLeft: 5,
-    color: 'gray',
-  },
-  indirButon: { // İndir butonu için ek stil
-    backgroundColor: '#4CAF50', 
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-  },
-  indirText: { color: '#fff', fontWeight: 'bold', marginLeft: 5 },
-  yorumBaslik: { fontSize: 20, fontWeight: 'bold', paddingHorizontal: 20, marginTop: 20, marginBottom: 15 },
-  yorumEkleContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  yorumInput: {
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    minHeight: 60,
-    textAlignVertical: 'top',
-    marginBottom: 10,
-  },
-  yorumGonderButton: {
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  yorumGonderText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  yorumYokMesaji: {
-    textAlign: 'center',
-    color: 'gray',
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  yorumKarti: { backgroundColor: '#f9f9f9', borderRadius: 8, padding: 15, marginHorizontal: 20, marginBottom: 10 },
-  yorumKisi: { fontWeight: 'bold', marginBottom: 3 },
-  yorumMetin: { fontSize: 14, color: '#555' },
+    container: { flex: 1, padding: 20, backgroundColor: '#fff' },
+    loading: { flex: 1, justifyContent: 'center' },
+    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 20 },
+    infoBox: { padding: 15, backgroundColor: '#f9f9f9', borderRadius: 10, marginBottom: 20 },
+    infoText: { fontSize: 16, marginBottom: 5 },
+    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
+    likeButton: { flexDirection: 'row', alignItems: 'center' },
+    likeText: { marginLeft: 5, fontSize: 18, color: 'gray' },
+    commentSection: { marginTop: 20 },
+    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15 },
+    sectionTitleList: { fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
+    commentInput: { height: 60, borderColor: '#ccc', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10 },
+    commentItem: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', flexWrap: 'wrap' },
+    commentUsername: { fontWeight: 'bold', marginRight: 5, color: '#333' },
+    commentText: { flexShrink: 1, color: '#555' },
+    noComment: { color: '#888', textAlign: 'center', marginTop: 10 }
 });
-
-// Component'i dışa aktar
-export default NotDetayEkrani;

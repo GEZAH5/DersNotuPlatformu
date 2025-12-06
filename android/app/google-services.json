@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "689213593097",
+    "project_id": "notika-ade69",
+    "storage_bucket": "notika-ade69.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689213593097:android:fc2fac62d73dda6071cad8",
+        "android_client_info": {
+          "package_name": "com.dersnotuplatformu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgDpLh8MyXgNUnxlQ2DdWFy9Pz8UNNXgo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
