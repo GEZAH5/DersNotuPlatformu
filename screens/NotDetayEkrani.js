@@ -1,200 +1,336 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, Alert, ScrollView, ActivityIndicator, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, FlatList } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
-import RNFS from 'react-native-fs'; // Dosya indirme kütüphanesi
+import { useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-export default function NotDetayEkrani({ route, navigation }) {
-    const { noteId } = route.params; // Keşfet ekranından gelen not ID'si
+export default function NotDetayEkrani() {
+    const route = useRoute();
+    // 🛑 KRİTİK: Navigasyondan gelen noteId'yi al
+    const { noteId } = route.params; 
+
     const [note, setNote] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [comment, setComment] = useState('');
-    const [isFavorite, setIsFavorite] = useState(false); // Favori durumunu tutar (Beğeni)
-    const [comments, setComments] = useState([]); // Yorum listesi için
+    const [isLiked, setIsLiked] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [comments, setComments] = useState([]);
+    const user = auth().currentUser;
 
-    const currentUser = auth().currentUser;
-
-    // --- NOTU ÇEKME VE YORUMLARI DİNLEME ---
+    // --- Not ve Beğeni Durumunu Çekme ---
     useEffect(() => {
-        // Not detayını dinle
+        if (!noteId) return;
+
+        // 1. Not Verisini Çekme
         const noteSubscriber = firestore()
             .collection('Notes')
             .doc(noteId)
             .onSnapshot(documentSnapshot => {
                 if (documentSnapshot.exists) {
-                    setNote({ id: documentSnapshot.id, ...documentSnapshot.data() });
+                    setNote({ ...documentSnapshot.data(), id: documentSnapshot.id });
+                    setLoading(false);
                 } else {
                     Alert.alert('Hata', 'Not bulunamadı.');
+                    setLoading(false);
                 }
+            }, error => {
+                console.error("Detay Not Çekme Hatası:", error);
                 setLoading(false);
             });
 
-        // Yorumları dinle
+        // 2. Beğeni Durumunu Kontrol Etme
+        let likeSubscriber = () => {};
+        if (user) {
+            likeSubscriber = firestore()
+                .collection('Notes')
+                .doc(noteId)
+                .collection('Likes')
+                .doc(user.uid)
+                .onSnapshot(docSnapshot => {
+                    setIsLiked(docSnapshot.exists);
+                });
+        }
+        
+        // 3. Yorumları Çekme
         const commentSubscriber = firestore()
             .collection('Notes')
             .doc(noteId)
             .collection('Comments')
             .orderBy('createdAt', 'desc')
             .onSnapshot(querySnapshot => {
-                const loadedComments = [];
+                const commentList = [];
                 querySnapshot.forEach(doc => {
-                    loadedComments.push({ id: doc.id, ...doc.data() });
+                    commentList.push({ ...doc.data(), id: doc.id });
                 });
-                setComments(loadedComments);
+                setComments(commentList);
             });
 
+
+        // Abone Temizliği
         return () => {
             noteSubscriber();
+            likeSubscriber();
             commentSubscriber();
         };
-    }, [noteId]);
+    }, [noteId, user]);
 
-    // --- YORUM EKLEME İŞLEVİ ---
-    const handleAddComment = async () => {
-        if (comment.trim() === '') {
-            Alert.alert('Boş Yorum', 'Lütfen bir yorum yazın.');
+    // --- Beğenme İşlevi ---
+    const handleLike = async () => {
+        if (!user) {
+            Alert.alert('Giriş Gerekli', 'Beğenmek için giriş yapmalısınız.');
             return;
         }
+
         try {
-            await firestore().collection('Notes').doc(noteId).collection('Comments').add({
-                userId: currentUser.uid,
-                username: currentUser.displayName || currentUser.email,
-                text: comment,
+            const likeRef = firestore().collection('Notes').doc(noteId).collection('Likes').doc(user.uid);
+            const noteRef = firestore().collection('Notes').doc(noteId);
+
+            if (isLiked) {
+                // Beğeniyi Kaldır
+                await likeRef.delete();
+                // Notun begeniler sayısını azalt
+                await noteRef.update({
+                    begeniler: firestore.FieldValue.increment(-1)
+                });
+            } else {
+                // Beğen
+                await likeRef.set({ userId: user.uid });
+                // Notun begeniler sayısını artır
+                await noteRef.update({
+                    begeniler: firestore.FieldValue.increment(1)
+                });
+            }
+        } catch (error) {
+            console.error("Beğenme Hatası:", error);
+            Alert.alert('Hata', 'Beğenme işlemi başarısız oldu.');
+        }
+    };
+
+    // --- Yorum Yapma İşlevi ---
+    const handleComment = async () => {
+        if (!user) {
+            Alert.alert('Giriş Gerekli', 'Yorum yapmak için giriş yapmalısınız.');
+            return;
+        }
+        if (!commentText.trim()) return;
+
+        try {
+            const noteRef = firestore().collection('Notes').doc(noteId);
+            
+            // Yorumu kaydet
+            await noteRef.collection('Comments').add({
+                userId: user.uid,
+                username: user.email,
+                text: commentText,
                 createdAt: firestore.FieldValue.serverTimestamp(),
             });
-            setComment('');
-            // Yorum sayısını Notes ana koleksiyonunda güncelle
-            firestore().collection('Notes').doc(noteId).update({
+
+            // Yorum sayısını artır
+            await noteRef.update({
                 yorumSayisi: firestore.FieldValue.increment(1)
             });
+
+            setCommentText('');
         } catch (error) {
-            Alert.alert('Hata', 'Yorum eklenirken sorun oluştu.');
+            console.error("Yorum Hatası:", error);
+            Alert.alert('Hata', 'Yorum gönderme başarısız oldu.');
         }
     };
     
-    // --- BEĞENİ VE FAVORİ İŞLEVİ (Sadece beğeni sayısını artırır) ---
-    const handleLike = async () => {
-        const newLikeCount = note.begeniler + (isFavorite ? -1 : 1);
-        try {
-            await firestore().collection('Notes').doc(noteId).update({
-                begeniler: newLikeCount,
-            });
-            setIsFavorite(!isFavorite); 
-        } catch (error) {
-            Alert.alert('Hata', 'Beğeni güncellenemedi.');
-        }
-    };
-
-    // --- DOSYA İNDİRME İŞLEVİ (RNFS ile) ---
-    const handleDownload = async () => {
-        if (!note || !note.fileURL || note.fileURL === 'DOSYA_YÜKLENECEK') {
-            Alert.alert('Hata', 'Dosya linki geçerli değil. Not yükleme sırasında dosya yüklenmemiş olabilir.');
-            return;
-        }
-
-        const downloadUrl = note.fileURL;
-        const fileName = note.dosyaAdi || 'indirilen_not.pdf';
-        const downloadPath = `${RNFS.DownloadDirectoryPath}/${fileName}`; 
-
-        try {
-            Alert.alert('İndirme Başladı', `${fileName} dosyası cihazınıza indiriliyor...`);
-
-            const options = {
-                fromUrl: downloadUrl,
-                toFile: downloadPath,
-            };
-
-            const response = await RNFS.downloadFile(options).promise;
-
-            if (response.statusCode === 200) {
-                Alert.alert('Başarılı', `${fileName} başarıyla indirildi ve İndirilenler klasörüne kaydedildi!`);
-            } else {
-                throw new Error(`Sunucudan hata kodu alındı: ${response.statusCode}`);
-            }
-
-        } catch (error) {
-            console.error("İndirme Hatası:", error);
-            Alert.alert('Hata', 'Dosya indirilemedi. Bağlantı veya dosya izni sorunu olabilir.');
-        }
-    };
-
+    // --- Yükleniyor Ekranı ---
+    if (loading || !note) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={{ marginTop: 10, color: '#333' }}>Not yükleniyor...</Text>
+            </View>
+        );
+    }
+    
+    // --- Yorum Bileşeni ---
     const renderComment = ({ item }) => (
-        <View style={styles.commentItem}>
-            <Text style={styles.commentUsername}>{item.username}:</Text>
+        <View style={styles.commentContainer}>
+            <Text style={styles.commentUsername}>{item.username || 'Kullanıcı'}</Text>
             <Text style={styles.commentText}>{item.text}</Text>
         </View>
     );
 
-    if (loading || !note) {
-        return <ActivityIndicator size="large" style={styles.loading} color="#007AFF" />;
-    }
-
+    // --- Ana İçerik ---
     return (
-        <ScrollView style={styles.container}>
-            <Text style={styles.title}>{note.baslik}</Text>
-            
-            {/* Not Bilgileri */}
-            <View style={styles.infoBox}>
-                <Text style={styles.infoText}>**Ders:** {note.dersAdi}</Text>
-                <Text style={styles.infoText}>**Bölüm:** {note.bolum}</Text>
-                <Text style={styles.infoText}>**Yükleyen:** {note.username}</Text>
-                <Text style={styles.infoText}>**Dosya Adı:** {note.dosyaAdi}</Text>
-            </View>
-            
-            {/* Etkileşim ve İndirme */}
-            <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-                    <Icon name={isFavorite ? 'heart' : 'heart-outline'} size={24} color={isFavorite ? 'red' : 'gray'} />
-                    <Text style={styles.likeText}>{note.begeniler}</Text>
-                </TouchableOpacity>
-                <Button 
-                    title="Dosyayı İndir" 
-                    onPress={handleDownload} 
-                    color="#28a745"
-                    disabled={note.fileURL === 'DOSYA_YÜKLENECEK'}
-                />
-            </View>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20}
+        >
+            <ScrollView style={styles.container}>
+                <Text style={styles.title}>{note.baslik}</Text>
+                <Text style={styles.subtitle}>{note.dersAdi} - {note.bolum} ({note.konu})</Text>
+                
+                <Text style={styles.metadata}>Yükleyen: {note.username || 'Anonim'}</Text>
+                <Text style={styles.metadata}>
+                    Tarih: {note.yuklenmeTarihi ? note.yuklenmeTarihi.toDate().toLocaleDateString('tr-TR') : 'Bilinmiyor'}
+                </Text>
 
-            {/* Yorum Alanı */}
-            <View style={styles.commentSection}>
-                <Text style={styles.sectionTitle}>Yorum Yap</Text>
+                <View style={styles.imageContainer}>
+                    {note.fileURL ? (
+                        // 🛑 KRİTİK: Firebase Storage'dan gelen URL ile fotoğrafı göster!
+                        <Image source={{ uri: note.fileURL }} style={styles.noteImage} resizeMode="contain" />
+                    ) : (
+                        <Text style={styles.noImageText}>Görüntü Yüklenemedi.</Text>
+                    )}
+                </View>
+
+                {/* Beğeni Butonu ve Sayacı */}
+                <View style={styles.actionsContainer}>
+                    <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
+                        <Icon 
+                            name={isLiked ? "heart" : "heart-outline"} 
+                            size={30} 
+                            color={isLiked ? "#FF3B30" : "#333"} 
+                        />
+                        <Text style={styles.likeCount}>{note.begeniler || 0}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Yorumlar Başlığı */}
+                <Text style={styles.commentsTitle}>Yorumlar ({comments.length})</Text>
+
+                {/* Yorum Listesi */}
+                <FlatList
+                    data={comments}
+                    renderItem={renderComment}
+                    keyExtractor={item => item.id}
+                    scrollEnabled={false} // İç ScrollView içinde olduğundan false
+                />
+            </ScrollView>
+
+            {/* Yorum Yazma Alanı (KeyboardAvoidingView içinde) */}
+            <View style={styles.commentInputContainer}>
                 <TextInput
                     style={styles.commentInput}
-                    placeholder="Bir yorum yazın..."
-                    value={comment}
-                    onChangeText={setComment}
+                    placeholder="Yorumunuzu yazın..."
+                    value={commentText}
+                    onChangeText={setCommentText}
                     multiline
                 />
-                <Button title="Yorumu Gönder" onPress={handleAddComment} color="#007AFF" disabled={!comment.trim()} />
-                
-                <Text style={styles.sectionTitleList}>Tüm Yorumlar ({comments.length})</Text>
-                {comments.length > 0 ? (
-                    comments.map((item) => renderComment({ item }))
-                ) : (
-                    <Text style={styles.noComment}>Henüz yorum yok.</Text>
-                )}
+                <TouchableOpacity style={styles.sendButton} onPress={handleComment}>
+                    <Icon name="send" size={20} color="#fff" />
+                </TouchableOpacity>
             </View>
-            <View style={{height: 50}} /> 
-        </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-    loading: { flex: 1, justifyContent: 'center' },
-    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 20 },
-    infoBox: { padding: 15, backgroundColor: '#f9f9f9', borderRadius: 10, marginBottom: 20 },
-    infoText: { fontSize: 16, marginBottom: 5 },
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-    likeButton: { flexDirection: 'row', alignItems: 'center' },
-    likeText: { marginLeft: 5, fontSize: 18, color: 'gray' },
-    commentSection: { marginTop: 20 },
-    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15 },
-    sectionTitleList: { fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
-    commentInput: { height: 60, borderColor: '#ccc', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10 },
-    commentItem: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', flexWrap: 'wrap' },
-    commentUsername: { fontWeight: 'bold', marginRight: 5, color: '#333' },
-    commentText: { flexShrink: 1, color: '#555' },
-    noComment: { color: '#888', textAlign: 'center', marginTop: 10 }
+    container: {
+        flex: 1,
+        backgroundColor: '#f0f0f7',
+        padding: 15,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f7',
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 5,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: '#666',
+        marginBottom: 10,
+    },
+    metadata: {
+        fontSize: 14,
+        color: '#999',
+        marginBottom: 3,
+    },
+    imageContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        marginVertical: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 300,
+        padding: 10,
+    },
+    noteImage: {
+        width: '100%',
+        aspectRatio: 1, // Kare oranında gösterir
+        borderRadius: 8,
+    },
+    noImageText: {
+        color: '#ccc',
+        fontSize: 16,
+    },
+    actionsContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: '#ddd',
+        paddingVertical: 10,
+    },
+    likeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+    },
+    likeCount: {
+        marginLeft: 8,
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    commentsTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+        marginTop: 10,
+    },
+    commentContainer: {
+        backgroundColor: '#fff',
+        padding: 10,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    commentUsername: {
+        fontWeight: 'bold',
+        fontSize: 14,
+        color: '#007AFF',
+        marginBottom: 2,
+    },
+    commentText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    commentInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        borderTopWidth: 1,
+        borderColor: '#ddd',
+        backgroundColor: '#fff',
+    },
+    commentInput: {
+        flex: 1,
+        maxHeight: 100,
+        padding: 10,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 20,
+        marginRight: 10,
+    },
+    sendButton: {
+        backgroundColor: '#007AFF',
+        borderRadius: 20,
+        padding: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    }
 });

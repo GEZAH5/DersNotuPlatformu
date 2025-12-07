@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator } from '@react-navigation/stack'; // Stabil Stack Navigator
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
-import auth from '@react-native-firebase/auth'; // Firebase Auth importu
+import auth from '@react-native-firebase/auth'; 
 
-// KRİTİK DÜZELTME: Ekranları doğrudan './screens/' klasöründen çekiyoruz.
+// --- Ekranların Import Edilmesi ---
 import GirisEkrani from './screens/GirisEkrani';
 import KayitOlEkrani from './screens/KayitOlEkrani';
 import NotlarimEkrani from './screens/NotlarimEkrani';
 import KesfetEkrani from './screens/KesfetEkrani';
 import NotYuklemeEkrani from './screens/NotYuklemeEkrani';
 import ProfilEkrani from './screens/ProfilEkrani';
+// 🛑 KRİTİK EKSİK: NotDetayEkrani'nı buraya eklemeliyiz!
+import NotDetayEkrani from './screens/NotDetayEkrani'; 
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// ----------------------------------------------------
-// ANA UYGULAMA SEKME NAVİGATOR'Ü (LOGİN SONRASI)
-// ----------------------------------------------------
+// --- Sekme Navigator'ü ---
 function AnaUygulamaTabs() {
     return (
         <Tab.Navigator
@@ -29,7 +29,6 @@ function AnaUygulamaTabs() {
                 tabBarInactiveTintColor: 'gray',
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName;
-
                     if (route.name === 'Notlarim') {
                         iconName = focused ? 'book' : 'book-outline';
                     } else if (route.name === 'Kesfet') {
@@ -51,9 +50,7 @@ function AnaUygulamaTabs() {
     );
 }
 
-// ----------------------------------------------------
-// GİRİŞ/KAYIT STACK NAVİGATOR'Ü (LOGOUT SONRASI)
-// ----------------------------------------------------
+// --- Auth Stack ---
 function AuthStack() {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -63,14 +60,11 @@ function AuthStack() {
     );
 }
 
-// ----------------------------------------------------
-// ANA UYGULAMA COMPONENT'İ (Oturum Kontrolü)
-// ----------------------------------------------------
+// --- ANA COMPONENT ---
 export default function App() {
     const [initializing, setInitializing] = useState(true); 
     const [user, setUser] = useState(null); 
 
-    // Kullanıcı oturum durumu değiştiğinde çağrılır
     function onAuthStateChanged(user) {
         setUser(user);
         if (initializing) setInitializing(false);
@@ -90,16 +84,27 @@ export default function App() {
         );
     }
 
-    // Navigasyon Mantığı:
     return (
         <NavigationContainer>
-            {user ? (
-                // Kullanıcı varsa: Ana Uygulama Sekmeleri gösterilir
-                <AnaUygulamaTabs />
-            ) : (
-                // Kullanıcı yoksa: Giriş/Kayıt Ekranları gösterilir
-                <AuthStack />
-            )}
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+                {user ? (
+                    // Kullanıcı varsa: 
+                    <>
+                        <Stack.Screen name="AnaUygulama" component={AnaUygulamaTabs} />
+                        
+                        {/* 🛑 ÇÖZÜM: 'NotDetay' ekranını buraya ekliyoruz! 
+                           Bu, "navigate with payload" hatasını çözer. */}
+                        <Stack.Screen 
+                            name="NotDetay" 
+                            component={NotDetayEkrani} 
+                            options={{ headerShown: true, title: 'Not Detay' }} 
+                        />
+                    </>
+                ) : (
+                    // Kullanıcı yoksa: Auth Stack
+                    <Stack.Screen name="Auth" component={AuthStack} />
+                )}
+            </Stack.Navigator>
         </NavigationContainer>
     );
 }
