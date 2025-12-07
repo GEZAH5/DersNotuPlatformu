@@ -4,10 +4,10 @@ import firestore from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function KesfetEkrani({ navigation }) {
-    const [allNotes, setAllNotes] = useState([]); // Tüm notlar
-    const [filteredNotes, setFilteredNotes] = useState([]); // Filtrelenmiş notlar
+    const [allNotes, setAllNotes] = useState([]); 
+    const [filteredNotes, setFilteredNotes] = useState([]); 
     const [loading, setLoading] = useState(true);
-    const [searchText, setSearchText] = useState(''); // Arama metni
+    const [searchText, setSearchText] = useState(''); 
 
     // --- Notları Firebase'den Çekme ---
     useEffect(() => {
@@ -23,8 +23,8 @@ export default function KesfetEkrani({ navigation }) {
                     });
                 });
 
-                setAllNotes(notesArray); // Tüm notları kaydet
-                setFilteredNotes(notesArray); // Başlangıçta hepsi filtrelenmiş olarak görünür
+                setAllNotes(notesArray); 
+                setFilteredNotes(notesArray); 
                 setLoading(false);
             }, error => {
                 console.error("Firestore okuma hatası:", error);
@@ -43,12 +43,11 @@ export default function KesfetEkrani({ navigation }) {
 
         const lowerCaseSearch = searchText.toLowerCase();
         const results = allNotes.filter(note => {
-            // Başlık, Ders Adı, Konu veya Kullanıcı Adına göre filtrele
             return (
                 (note.baslik && note.baslik.toLowerCase().includes(lowerCaseSearch)) ||
                 (note.dersAdi && note.dersAdi.toLowerCase().includes(lowerCaseSearch)) ||
                 (note.konu && note.konu.toLowerCase().includes(lowerCaseSearch)) ||
-                (note.username && note.username.toLowerCase().includes(lowerCaseSearch)) // Kullanıcı Adı ile arama
+                (note.username && note.username.toLowerCase().includes(lowerCaseSearch))
             );
         });
         setFilteredNotes(results);
@@ -93,7 +92,6 @@ export default function KesfetEkrani({ navigation }) {
         <View style={styles.container}>
             <Text style={styles.pageTitle}>Tüm Notları Keşfet</Text>
             
-            {/* 🛑 ARAMA KISMI */}
             <TextInput
                 style={styles.searchInput}
                 placeholder="Başlık, Ders Adı veya Kullanıcı Adı Ara..."
@@ -127,10 +125,10 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#333',
         paddingHorizontal: 20,
-        paddingTop: 20,
-        paddingBottom: 10,
+        paddingTop: 40, // 🛑 YAZIYI AŞAĞI ÇEKEN DÜZELTME
+        paddingBottom: 20, 
     },
-    searchInput: { // Arama Kutusu Style
+    searchInput: {
         height: 50,
         borderColor: '#ccc',
         borderWidth: 1,

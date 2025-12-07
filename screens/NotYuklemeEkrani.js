@@ -16,7 +16,7 @@ export default function NotYuklemeEkrani({ navigation }) {
     const [fileName, setFileName] = useState('');
 
     const user = auth().currentUser;
-    // ... [pickFile fonksiyonu aynı kalıyor] ...
+    
     const pickFile = async (isCamera) => {
         try {
             let image;
@@ -52,7 +52,7 @@ export default function NotYuklemeEkrani({ navigation }) {
     };
 
 
-    // --- Yükleme İşlevi (Güncellendi) ---
+    // --- Yükleme İşlevi ---
     const handleUpload = async () => {
         if (!user) {
             Alert.alert('Hata', 'Giriş yapmalısınız.');
@@ -67,9 +67,9 @@ export default function NotYuklemeEkrani({ navigation }) {
         setLoading(true);
 
         try {
-            // 🛑 KRİTİK: Kullanıcının kullanıcı adını Firestore'dan çekme
+            // Kullanıcının kullanıcı adını Firestore'dan çekme
             const userDoc = await firestore().collection('Users').doc(user.uid).get();
-            const usernameToSave = userDoc.data()?.username || user.email; // Bulamazsa maili kullan
+            const usernameToSave = userDoc.data()?.username || user.email; 
 
             // 1. Dosyayı Firebase Storage'a Yükle
             const storageRef = storage().ref(`notes/${user.uid}/${fileName}_${Date.now()}`);
@@ -85,7 +85,7 @@ export default function NotYuklemeEkrani({ navigation }) {
                 bolum,
                 konu,
                 userId: user.uid,
-                username: usernameToSave, // 🛑 ARTIK KULLANICI ADI GÖNDERİLİYOR
+                username: usernameToSave, // KULLANICI ADI GÖNDERİLİYOR
                 fileURL: fileURL,
                 contentType: 'image',
                 yuklenmeTarihi: firestore.FieldValue.serverTimestamp(),
@@ -111,7 +111,6 @@ export default function NotYuklemeEkrani({ navigation }) {
         }
     };
     
-    // ... [JSX kodu aynı kalıyor] ...
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Yeni Ders Notu Yükle</Text>
@@ -180,7 +179,9 @@ export default function NotYuklemeEkrani({ navigation }) {
 
 const styles = StyleSheet.create({
     container: {
-        padding: 20,
+        // 🛑 BU DEĞER YAZILARI AŞAĞI ÇEKER. İhtiyaca göre 40, 50, 60 gibi bir değer seçebilirsiniz.
+        paddingTop: 50, 
+        paddingHorizontal: 20, 
         backgroundColor: '#f0f0f7',
     },
     title: {
