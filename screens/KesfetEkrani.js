@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import Icon from 'react-native-vector-icons/Ionicons';
-// navigation prop'unu kullanacağımız için import etmeye gerek yok, direkt props'tan alacağız.
 
-export default function KesfetEkrani({ navigation }) { // navigation prop'u burada alındı
-    const [notes, setNotes] = useState([]);
+export default function KesfetEkrani({ navigation }) {
+    const [allNotes, setAllNotes] = useState([]); // Tüm notlar
+    const [filteredNotes, setFilteredNotes] = useState([]); // Filtrelenmiş notlar
     const [loading, setLoading] = useState(true);
+    const [searchText, setSearchText] = useState(''); // Arama metni
 
+    // --- Notları Firebase'den Çekme ---
     useEffect(() => {
         const subscriber = firestore()
             .collection('Notes')
@@ -21,22 +23,40 @@ export default function KesfetEkrani({ navigation }) { // navigation prop'u bura
                     });
                 });
 
-                setNotes(notesArray);
+                setAllNotes(notesArray); // Tüm notları kaydet
+                setFilteredNotes(notesArray); // Başlangıçta hepsi filtrelenmiş olarak görünür
                 setLoading(false);
             }, error => {
                 console.error("Firestore okuma hatası:", error);
                 setLoading(false);
             });
 
-        // Aboneliği temizle
         return () => subscriber();
     }, []);
+    
+    // --- Arama ve Filtreleme İşlevi ---
+    useEffect(() => {
+        if (searchText.trim() === '') {
+            setFilteredNotes(allNotes);
+            return;
+        }
+
+        const lowerCaseSearch = searchText.toLowerCase();
+        const results = allNotes.filter(note => {
+            // Başlık, Ders Adı, Konu veya Kullanıcı Adına göre filtrele
+            return (
+                (note.baslik && note.baslik.toLowerCase().includes(lowerCaseSearch)) ||
+                (note.dersAdi && note.dersAdi.toLowerCase().includes(lowerCaseSearch)) ||
+                (note.konu && note.konu.toLowerCase().includes(lowerCaseSearch)) ||
+                (note.username && note.username.toLowerCase().includes(lowerCaseSearch)) // Kullanıcı Adı ile arama
+            );
+        });
+        setFilteredNotes(results);
+    }, [searchText, allNotes]);
 
     const renderItem = ({ item }) => (
         <TouchableOpacity 
             style={styles.noteCard} 
-            // 🛑 KRİTİK DÜZELTME: Not ID'sini alarak Detay Ekranına yönlendir!
-            // Eğer navigation prop'u alınıyorsa, onPress'in çalışmama ihtimali düşüktür.
             onPress={() => navigation.navigate('NotDetay', { noteId: item.id })}
         >
             <View style={styles.headerRow}>
@@ -72,12 +92,21 @@ export default function KesfetEkrani({ navigation }) { // navigation prop'u bura
     return (
         <View style={styles.container}>
             <Text style={styles.pageTitle}>Tüm Notları Keşfet</Text>
+            
+            {/* 🛑 ARAMA KISMI */}
+            <TextInput
+                style={styles.searchInput}
+                placeholder="Başlık, Ders Adı veya Kullanıcı Adı Ara..."
+                value={searchText}
+                onChangeText={setSearchText}
+            />
+
             <FlatList
-                data={notes}
+                data={filteredNotes} 
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContainer}
-                ListEmptyComponent={<Text style={styles.emptyText}>Henüz yüklenmiş not bulunmamaktadır.</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>Sonuç bulunamadı.</Text>}
             />
         </View>
     );
@@ -97,11 +126,23 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontWeight: 'bold',
         color: '#333',
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingTop: 20,
         paddingBottom: 10,
     },
+    searchInput: { // Arama Kutusu Style
+        height: 50,
+        borderColor: '#ccc',
+        borderWidth: 1,
+        borderRadius: 25,
+        paddingHorizontal: 20,
+        marginHorizontal: 20,
+        marginBottom: 15,
+        backgroundColor: '#fff',
+    },
     listContainer: {
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingBottom: 20,
         paddingTop: 0,
     },
     noteCard: {

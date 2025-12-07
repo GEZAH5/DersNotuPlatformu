@@ -1,80 +1,140 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
-import auth from '@react-native-firebase/auth'; 
-import firestore from '@react-native-firebase/firestore'; 
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore'; // Firestore import edildi
 
 export default function KayitOlEkrani({ navigation }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [username, setUsername] = useState('');
-    
+    const [username, setUsername] = useState(''); // 🛑 YENİ: Kullanıcı Adı State'i
+    const [loading, setLoading] = useState(false);
+
     const handleSignUp = async () => {
-        if (!email || !password || !username) {
+        if (!email || !password || !username) { // Kontrole username eklendi
             Alert.alert('Hata', 'Lütfen tüm alanları doldurun.');
             return;
         }
+        
+        // Kullanıcı Adı Kontrolü (Opsiyonel ama önerilir):
+        if (username.length < 3) {
+            Alert.alert('Hata', 'Kullanıcı adı en az 3 karakter olmalıdır.');
+            return;
+        }
+
+        setLoading(true);
 
         try {
-            // 1. Firebase Authentication ile kullanıcı oluştur
-            const userCredential = await auth().createUserWithEmailAndPassword(email, password);
-            const user = userCredential.user;
+            // 1. Kullanıcıyı Firebase Auth ile oluştur
+            const response = await auth().createUserWithEmailAndPassword(email, password);
+            const user = response.user;
 
-            // 2. Firestore'a kullanıcı profilini kaydet (Profil ekranı için zorunlu)
+            // 2. Kullanıcı bilgilerini Firestore'a kaydet
             await firestore().collection('Users').doc(user.uid).set({
-                email: user.email,
-                username: username,
+                email: email,
+                username: username, // 🛑 KRİTİK: Kullanıcı adını kaydet
                 createdAt: firestore.FieldValue.serverTimestamp(),
             });
 
-            Alert.alert('Başarılı', 'Kayıt başarılı! Uygulamaya yönlendiriliyorsunuz.');
-            // Başarılı olursa App.tsx'teki dinleyici tetiklenir ve Ana Uygulamaya geçiş yapılır.
+            Alert.alert('Başarılı', 'Kayıt işlemi tamamlandı!');
+            navigation.navigate('Giris');
 
         } catch (error) {
-            let errorMessage = "Kayıt sırasında bir hata oluştu: " + error.message;
+            let errorMessage = 'Kayıt başarısız oldu. Lütfen tekrar deneyin.';
             if (error.code === 'auth/email-already-in-use') {
-                errorMessage = "Bu e-posta adresi zaten kullanılıyor.";
+                errorMessage = 'Bu e-posta adresi zaten kullanılıyor.';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'Geçersiz e-posta formatı.';
             } else if (error.code === 'auth/weak-password') {
-                errorMessage = "Şifreniz en az 6 karakter olmalıdır.";
+                errorMessage = 'Şifre en az 6 karakter olmalıdır.';
             }
             Alert.alert('Hata', errorMessage);
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>NOTİKA'ya Kayıt Ol</Text>
+            <Text style={styles.title}>Yeni Hesap Oluştur</Text>
+
+            {/* 🛑 YENİ: Kullanıcı Adı Girişi */}
             <TextInput
                 style={styles.input}
                 placeholder="Kullanıcı Adı"
-                onChangeText={setUsername}
                 value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
             />
+            
             <TextInput
                 style={styles.input}
                 placeholder="E-posta"
-                onChangeText={setEmail}
                 value={email}
+                onChangeText={setEmail}
                 keyboardType="email-address"
+                autoCapitalize="none"
             />
             <TextInput
                 style={styles.input}
-                placeholder="Şifre (min. 6 karakter)"
-                onChangeText={setPassword}
+                placeholder="Şifre"
                 value={password}
+                onChangeText={setPassword}
                 secureTextEntry
             />
-            <Button title="Kayıt Ol" onPress={handleSignUp} color="#007AFF"/>
-            
+
+            <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading}>
+                {loading ? (
+                    <ActivityIndicator color="#fff" />
+                ) : (
+                    <Text style={styles.buttonText}>Kayıt Ol</Text>
+                )}
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={() => navigation.navigate('Giris')}>
-                <Text style={styles.link}>Zaten hesabım var, Giriş Yap</Text>
+                <Text style={styles.linkText}>Zaten hesabınız var mı? Giriş Yapın</Text>
             </TouchableOpacity>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' },
-    title: { fontSize: 28, marginBottom: 30, textAlign: 'center', fontWeight: 'bold' },
-    input: { height: 50, borderColor: '#ccc', borderWidth: 1, marginBottom: 15, paddingHorizontal: 15, borderRadius: 8 },
-    link: { color: '#007AFF', textAlign: 'center', marginTop: 20, fontSize: 16 }
+    container: {
+        flex: 1,
+        justifyContent: 'center',
+        padding: 30,
+        backgroundColor: '#f0f0f7',
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        marginBottom: 30,
+        textAlign: 'center',
+        color: '#333',
+    },
+    input: {
+        backgroundColor: '#fff',
+        borderColor: '#ddd',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 15,
+        marginBottom: 15,
+        fontSize: 16,
+    },
+    button: {
+        backgroundColor: '#007AFF',
+        padding: 15,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    buttonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    linkText: {
+        color: '#007AFF',
+        textAlign: 'center',
+        fontSize: 16,
+    },
 });

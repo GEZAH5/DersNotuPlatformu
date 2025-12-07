@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import firestore from '@react-native-firebase/firestore'; 
 import storage from '@react-native-firebase/storage';
-// 🛑 En son kurulan stabil kütüphane
 import ImagePicker from 'react-native-image-crop-picker'; 
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -17,8 +16,7 @@ export default function NotYuklemeEkrani({ navigation }) {
     const [fileName, setFileName] = useState('');
 
     const user = auth().currentUser;
-
-    // --- Dosya Seçme Fonksiyonu ---
+    // ... [pickFile fonksiyonu aynı kalıyor] ...
     const pickFile = async (isCamera) => {
         try {
             let image;
@@ -39,7 +37,6 @@ export default function NotYuklemeEkrani({ navigation }) {
             }
 
             if (image) {
-                // Kütüphaneden gelen path ve isim bilgilerini al
                 setSelectedFileUri(image.path);
                 const pathParts = image.path.split('/');
                 setFileName(pathParts[pathParts.length - 1] || 'not_fotografi.jpg');
@@ -53,8 +50,9 @@ export default function NotYuklemeEkrani({ navigation }) {
             }
         }
     };
-    
-    // --- Yükleme İşlevi ---
+
+
+    // --- Yükleme İşlevi (Güncellendi) ---
     const handleUpload = async () => {
         if (!user) {
             Alert.alert('Hata', 'Giriş yapmalısınız.');
@@ -69,6 +67,10 @@ export default function NotYuklemeEkrani({ navigation }) {
         setLoading(true);
 
         try {
+            // 🛑 KRİTİK: Kullanıcının kullanıcı adını Firestore'dan çekme
+            const userDoc = await firestore().collection('Users').doc(user.uid).get();
+            const usernameToSave = userDoc.data()?.username || user.email; // Bulamazsa maili kullan
+
             // 1. Dosyayı Firebase Storage'a Yükle
             const storageRef = storage().ref(`notes/${user.uid}/${fileName}_${Date.now()}`);
             const task = storageRef.putFile(selectedFileUri);
@@ -83,7 +85,7 @@ export default function NotYuklemeEkrani({ navigation }) {
                 bolum,
                 konu,
                 userId: user.uid,
-                username: user.email, 
+                username: usernameToSave, // 🛑 ARTIK KULLANICI ADI GÖNDERİLİYOR
                 fileURL: fileURL,
                 contentType: 'image',
                 yuklenmeTarihi: firestore.FieldValue.serverTimestamp(),
@@ -109,6 +111,7 @@ export default function NotYuklemeEkrani({ navigation }) {
         }
     };
     
+    // ... [JSX kodu aynı kalıyor] ...
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Yeni Ders Notu Yükle</Text>
