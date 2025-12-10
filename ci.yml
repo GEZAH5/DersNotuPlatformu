@@ -1,0 +1,29 @@
+# ci.yml dosyası
+name: CI Test Otomasyonu
+
+on:
+  # Bir Pull Request acildiginda tetiklenir
+  pull_request:
+    branches:
+      - main # Ana dal adınız (main veya master)
+
+jobs:
+  run_unit_tests:
+    name: Unit Testleri Calistir
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu Cek
+        uses: actions/checkout@v3
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Bagimliliklari Yukle (npm install)
+        run: npm install
+
+      - name: Unit Testleri Calistir ve Kanit Topla
+        run: npm test
+        # Bu adim, testlerinizi otomatik calistiracaktir.
